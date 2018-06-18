@@ -1,0 +1,27 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "C:\\Users\\pdthang\\AppData\\Local\\Arduino15\\packages\\adafruit\\hardware\\samd\\1.2.0\\cores\\arduino"
+            ],
+            "browse": {
+                "limitSymbolsToIncludedHeaders": false,
+                "path": [
+                    "C:\\Users\\pdthang\\AppData\\Local\\Arduino15\\packages\\adafruit\\hardware\\samd\\1.2.0\\cores\\arduino",
+                    "C:\\Users\\pdthang\\Desktop\\arduino-1.8.5\\hardware",
+                    "C:\\Users\\pdthang\\Desktop\\arduino-1.8.5\\libraries",
+                    "D:\\05_WORKSPACE\\arduino\\libraries",
+                    "D:\\05_WORKSPACE\\arduino\\libraries\\ArduinoJson\\src\\ArduinoJson",
+                    "D:\\05_WORKSPACE\\arduino\\libraries\\PubSubClient\\src\\PubSubClient",
+                    "D:\\05_WORKSPACE\\arduino\\libraries\\Dps310\\src"
+                ]
+            },
+            "intelliSenseMode": "msvc-x64",
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        }
+    ],
+    "version": 4
+}
