@@ -1,10 +1,9 @@
 #include <Wire.h>
-#include <utility/imumaths.h>
+#include <Adafruit_Sensor.h>
 #include <SPI.h>
 #include <WiFi101.h>
 #include <ArduinoJson.h>
 #include <Dps310.h>
-
 
 #include <PubSubClient.h>
 #define MAX_MQTT_PAYLOAD 100
