@@ -5,15 +5,23 @@
 #include <SPI.h>
 #include <WiFi101.h>
 #include <ArduinoJson.h>
-char ssid[] = "dlink-8EF8";    // your network SSID (name)
-char pass[] = "hzzaq63354";    // your network password (use for WPA, or use as key for WEP)
+
+#include <PubSubClient.h>
+#define MAX_MQTT_PAYLOAD 100
+
+char ssid[] = "SSID";    // your network SSID (name)
+char pass[] = "PASS_WORD";    // your network password (use for WPA, or use as key for WEP)
+
 int keyIndex = 0;            // your network key Index number (needed only for WEP)
+
 int status = WL_IDLE_STATUS;
 
 //char server[] = "www.google.com";    // name address for server (using DNS)
-IPAddress server(192,168,0,11);  // numeric IP for server (no DNS)
-#define SERVER_PORT 8082
-WiFiClient client;
+IPAddress server(192,168,0,81);  // numeric IP for server (no DNS)
+
+WiFiClient wifiClient;
+PubSubClient client(wifiClient);
+char payload[MAX_MQTT_PAYLOAD];
 
 /*
     BNO055 Orientation Sensor Connection Setting
@@ -23,8 +31,10 @@ WiFiClient client;
     Connect VDD to 3-5V DC
     Connect GROUND to common ground
 */
+
 /* Set the delay between fresh samples */
-#define BNO055_SAMPLERATE_DELAY_MS (1000)
+#define BNO055_SAMPLERATE_DELAY_MS (500)
+
 Adafruit_BNO055 bno = Adafruit_BNO055(55);
 
 /**************************************************************************/
@@ -41,29 +51,34 @@ void setup(void)
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
+
   // check for the presence of the shield:
   if (WiFi.status() == WL_NO_SHIELD) {
     Serial.println("WiFi shield not present");
     // don't continue:
     while (true);
   }
+
   // attempt to connect to WiFi network:
   while ( status != WL_CONNECTED) {
     Serial.print("Attempting to connect to SSID: ");
     Serial.println(ssid);
     // Connect to WPA/WPA2 network. Change this line if using open or WEP network:
     status = WiFi.begin(ssid, pass);
+
     // wait 10 seconds for connection:
     delay(10000);
   }
+
   Serial.println("Connected to wifi");
   // you're connected now, so print out the status:
   printWiFiStatus();
+
   Serial.println("\nStarting connection to server...");
   // if you get a connection, report back via serial:
-  if (client.connect(server, SERVER_PORT)) {
-    Serial.println("connected to server");
-  }
+  client.setServer(server, 1883);
+  client.setCallback(callback);
+  
   /* Initialise the orientation sensor */
   Serial.println("Initialise the orientation sensor..."); Serial.println("");  
   if(!bno.begin())
@@ -72,11 +87,15 @@ void setup(void)
     Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
     while(1);
   }
+
   delay(1000);
+
   /* Display some basic information on this sensor */
   //displaySensorDetails();
+
   /* Optional: Display current status */
   //displaySensorStatus();
+
   bno.setExtCrystalUse(true);
 }
 
@@ -88,74 +107,64 @@ void setup(void)
 /**************************************************************************/
 void loop(void)
 {
-  
-  while (!client.connected()) {
-    Serial.println();
-    Serial.print("Attempting to connect to Server...");
-    // if you get a connection, report back via serial:
-    if (client.connect(server, SERVER_PORT)) {
-      Serial.println("connected to server");
-    }
-    delay(1500);
-  };
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
 
   /* Get a new sensor event */
   sensors_event_t event;
   bno.getEvent(&event);
-  char* payload;
 
-  /* Wrap the floating point sensor data in Json format 
-  {"records":[
-      {"value":
-        {"x": "1", "y": "23", "z": "312"}
-      }
-    ]
-  } 
-  */
-  StaticJsonBuffer<100> jsonBufferData;
-  JsonObject& data  = jsonBufferData.createObject();
-  data["x"] = event.orientation.x;
-  data["y"] = event.orientation.y;
-  data["z"] = event.orientation.z;
-  StaticJsonBuffer<150> jsonBufferValues;
-  JsonObject& values = jsonBufferValues.createObject();
-  values["value"] = data;
-  StaticJsonBuffer<200> jsonBufferRecords;
-  JsonObject& root  = jsonBufferRecords.createObject();
-  JsonArray& records = root.createNestedArray("records");
-  records.add(values);
-  
-  // Sending a POST request to server:
-  // Send headers
-  client.println("POST /topics/i-rotation HTTP/1.1");
-  client.println("Host: http://192.168.0.11:8082");
-  client.println("Accept: application/vnd.kafka.v2+json");
-  client.println("Connection: close\r\nContent-Type: application/vnd.kafka.json.v2+json");
-  client.print("Content-Length: ");
-  client.println(root.measureLength());
-  // Terminate headers
-  client.println();
-
-  // Send body
-  root.printTo(client);
-  // Terminate Body
-  client.println();
-
-  // Print out sent data
-  Serial.println();
+  /* Wrap the floating point sensor data in Json format */
+  StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
+  JsonObject& root = jsonBuffer.createObject();
+  root["X"] = event.orientation.x;
+  root["Y"] = event.orientation.y;
+  root["Z"] = event.orientation.z;
+  root.printTo(payload, MAX_MQTT_PAYLOAD);
+  // send data
+  client.publish("sensorData", payload);
   Serial.println("Sensor data is sent");
-  root.prettyPrintTo(Serial);
-
-  // Close connection to refresh 
-  client.stop();
-  //WiFi.end();
 
   /* Wait the specified delay before requesting next data */
   delay(BNO055_SAMPLERATE_DELAY_MS);
+}
 
-  //Re-connect WiFi in case of closing Wifi (optional)
-  //WiFi.begin(ssid, pass);
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i=0;i<length;i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+}
 
+void reconnect() {
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+
+    // Create a random client ID
+    String clientId = "cubeClient-";
+    clientId += String(random(0xffff), HEX);
+
+    // Attempt to connect
+    if (client.connect(clientId.c_str())) {
+      Serial.println("connected");
+      // Once connected, publish an announcement...
+      client.publish("announcement","hello world");
+      // ... and resubscribe
+      client.subscribe("sensorData");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(5000);
+    }
+  }
 }
 
 /**************************************************************************/
@@ -167,10 +176,12 @@ void printWiFiStatus() {
   // print the SSID of the network you're attached to:
   Serial.print("SSID: ");
   Serial.println(WiFi.SSID());
+
   // print your WiFi shield's IP address:
   IPAddress ip = WiFi.localIP();
   Serial.print("IP Address: ");
   Serial.println(ip);
+
   // print the received signal strength:
   long rssi = WiFi.RSSI();
   Serial.print("signal strength (RSSI):");
@@ -211,6 +222,7 @@ void displaySensorStatus(void)
   uint8_t system_status, self_test_results, system_error;
   system_status = self_test_results = system_error = 0;
   bno.getSystemStatus(&system_status, &self_test_results, &system_error);
+
   /* Display the results in the Serial Monitor */
   Serial.println("");
   Serial.print("System Status: 0x");
