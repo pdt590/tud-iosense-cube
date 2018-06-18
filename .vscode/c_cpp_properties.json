@@ -13,12 +13,10 @@
                     "C:\\Users\\pdthang\\Desktop\\arduino-1.8.5\\libraries",
                     "D:\\05_WORKSPACE\\arduino\\libraries",
                     "D:\\05_WORKSPACE\\arduino\\libraries\\ArduinoJson\\src\\ArduinoJson",
-                    "D:\\05_WORKSPACE\\arduino\\libraries\\PubSubClient\\src\\PubSubClient",
-                    "D:\\05_WORKSPACE\\arduino\\libraries\\Dps310\\src"
+                    "D:\\05_WORKSPACE\\arduino\\libraries\\PubSubClient\\src\\PubSubClient"
                 ]
             },
             "intelliSenseMode": "msvc-x64",
-            "compilerPath": "/usr/bin/gcc",
             "cStandard": "c11",
             "cppStandard": "c++17"
         }
