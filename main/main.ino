@@ -4,8 +4,9 @@
 #include <WiFi101.h>
 #include <ArduinoJson.h>
 #include <Dps310.h>
-
 #include <PubSubClient.h>
+
+#define DEBUG
 #define MAX_MQTT_PAYLOAD 100
 
 char ssid[] = "SSID";    // your network SSID (name)
@@ -38,9 +39,12 @@ void setup(void)
   WiFi.setPins(8,7,4,2);
   
   Serial.begin(9600);
+
+  #ifdef DEBUG
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
+  #endif
 
   // check for the presence of the shield:
   if (WiFi.status() == WL_NO_SHIELD) {
@@ -125,11 +129,11 @@ void loop(void)
   StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
   root["temp"] = temperature;
-  root["press"] = pressure;
+  root["pressure"] = pressure;
   root.printTo(payload, MAX_MQTT_PAYLOAD);
 
   // Send data
-  client.publish("outTopic", payload);
+  client.publish("sensorData", payload);
   Serial.println("Sensor data is sent");
 
   // Wait some time

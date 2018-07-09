@@ -1,5 +1,5 @@
 {
     "board": "adafruit:samd:adafruit_feather_m0",
-    "port": "COM10",
-    "sketch": "main.ino"
+    "port": "COM5",
+    "sketch": "main\\main.ino"
 }
