@@ -6,27 +6,31 @@
 #include <Dps310.h>
 #include <PubSubClient.h>
 
-#define DEBUG
+//#define DEBUG
 #define MAX_MQTT_PAYLOAD 100
 
-char ssid[] = "SSID";    // your network SSID (name)
-char pass[] = "PASS_WORD";    // your network password (use for WPA, or use as key for WEP)
+//char ssid[] = "Connectify-thang";    // your network SSID (name)
+//char pass[] = "12345678";    // your network password (use for WPA, or use as key for WEP)
+char ssid[] = "asus-2.4g";    // your network SSID (name)
+char pass[] = "en2ZP5Jm2fxD9uB6";    // your network password (use for WPA, or use as key for WEP)
 
 int status = WL_IDLE_STATUS;
+String cubeId;
 
 int32_t temperature;
 int32_t pressure;
 int16_t oversampling = 7;
 int16_t ret;
+String lampUrl;
 // Dps310 Object
 Dps310 Dps310PressureSensor = Dps310();
 
 //char server[] = "www.google.com";    // name address for server (using DNS)
-IPAddress server(10,0,0,1);  // numeric IP for server (no DNS)
+IPAddress server(10,8,0,198);  // numeric IP for server (no DNS)
 
 WiFiClient wifiClient;
 PubSubClient client(wifiClient);
-char payload[MAX_MQTT_PAYLOAD];
+char message[MAX_MQTT_PAYLOAD];
 
 /**************************************************************************/
 /*
@@ -79,6 +83,23 @@ void setup(void)
   
 }
 
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  for (int i=0;i<length;i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+  //String myTopic(topic); 
+  if (strcmp("lampUrl", topic)==0) {
+    StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
+    JsonObject& root = jsonBuffer.parseObject((const char*)payload);
+    lampUrl = root["lampUrl"].as<String>();
+    client.unsubscribe(topic);
+  }
+}
+
 /**************************************************************************/
 /*
     Arduino loop function, called once 'setup' is complete (your own code
@@ -92,62 +113,43 @@ void loop(void)
   }
   client.loop();
 
-  // Get temperature data
-  ret = Dps310PressureSensor.measureTempOnce(temperature, oversampling);
-
-  if (ret != 0)
-  {
-    //Something went wrong.
-    //Look at the library code for more information about return codes
-    Serial.print("FAIL! ret = ");
-    Serial.println(ret);
-  }
-  else
-  {
-    Serial.print("Temperature: ");
-    Serial.print(temperature);
-    Serial.println(" degrees of Celsius");
-  }
-
   // Get pressure data
   ret = Dps310PressureSensor.measurePressureOnce(pressure, oversampling);
   if (ret != 0)
   {
     //Something went wrong.
     //Look at the library code for more information about return codes
-    Serial.print("FAIL! ret = ");
+    Serial.print("Dps310 FAIL! ret = ");
     Serial.println(ret);
   }
-  else
-  {
-    Serial.print("Pressure: ");
-    Serial.print(pressure);
-    Serial.println(" Pascal");
-  }
 
-  // Wrap sensor data in message with Json format
+  // Wrap message into Json format
   StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
-  root["temp"] = temperature;
-  root["pressure"] = pressure;
-  root.printTo(payload, MAX_MQTT_PAYLOAD);
-
-  // Send data
-  client.publish("sensorData", payload);
-  Serial.println("Sensor data is sent");
-
-  // Wait some time
-  delay(500);
-}
-
-void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  for (int i=0;i<length;i++) {
-    Serial.print((char)payload[i]);
+  root["cubeId"] = cubeId;
+  (lampUrl == "") ? (root["cubeState"] = false) : (root["cubeState"] = true);
+  root["cubeLampUrl"] = lampUrl;
+  root.printTo(message, MAX_MQTT_PAYLOAD);
+  // Send message to dashboard
+  client.publish("cubeList", message);
+  
+  if (lampUrl != "") {
+    StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
+    JsonObject& root = jsonBuffer.createObject();
+    root["cubeId"] = cubeId;
+    root["lampUrl"] = lampUrl;
+    root["pressure"] = pressure;
+    root.printTo(message, MAX_MQTT_PAYLOAD);
+    // Send message to toolkit
+    client.publish("sensorData", message);
+    Serial.println(message);
+    Serial.println("Pressure data is sent");
+  } else {
+    Serial.println("Cube doesn't connect yet");
   }
-  Serial.println();
+  
+  // Wait some time
+  delay(100);
 }
 
 void reconnect() {
@@ -156,16 +158,15 @@ void reconnect() {
     Serial.print("Attempting MQTT connection...");
 
     // Create a random client ID
-    String clientId = "cubeClient-";
-    clientId += String(random(0xffff), HEX);
+    cubeId = "cubeClient-";
+    cubeId += String(random(0xffff), HEX);
 
     // Attempt to connect
-    if (client.connect(clientId.c_str())) {
+    if (client.connect(cubeId.c_str())) {
       Serial.println("connected");
-      // Once connected, publish an announcement...
-      client.publish("outTopic","Trying to reconnect");
-      // ... and resubscribe
-      client.subscribe("inTopic");
+      Serial.println("subscribing some topics ...");
+      // subscribe
+      client.subscribe("lampUrl");
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
