@@ -3,8 +3,8 @@
 #include <SPI.h>
 #include <WiFi101.h>
 #include <ArduinoJson.h>
-#include <Dps310.h>
 #include <PubSubClient.h>
+#include "Adafruit_VL53L0X.h"
 
 //#define DEBUG
 #define MAX_MQTT_PAYLOAD 100
@@ -16,14 +16,12 @@ char ssid[] = "asus-2.4g";    // your network SSID (name)
 char pass[] = "en2ZP5Jm2fxD9uB6";    // your network password (use for WPA, or use as key for WEP)
 
 int status = WL_IDLE_STATUS;
+uint32_t range;
 String cubeId;
 
-int32_t pressure;
-int16_t oversampling = 7;
-int16_t ret;
-String lampUrl;
-// Dps310 Object
-Dps310 Dps310PressureSensor = Dps310();
+// VL53L0X Object
+VL53L0X_RangingMeasurementData_t measure;
+Adafruit_VL53L0X lox = Adafruit_VL53L0X();
 
 //char server[] = "www.google.com";    // name address for server (using DNS)
 IPAddress server(10,8,0,198);  // numeric IP for server (no DNS)
@@ -78,8 +76,11 @@ void setup(void)
   client.setCallback(callback);
 
   // Init DPS310 sensor
-  Serial.println("Initialize DPS310 Pressure Sensor...");
-  Dps310PressureSensor.begin(Wire);
+  Serial.println("Initialize VL53L0X Time-to-Flight Sensor...");
+  if (!lox.begin()) {
+    Serial.println(F("Failed to boot VL53L0X"));
+    while(1);
+  }
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -104,26 +105,27 @@ void loop(void)
     reconnect();
   }
   client.loop();
+  
+  //Featch range data
+  Serial.print("Reading a measurement... ");
+  lox.rangingTest(&measure, false); // pass in 'true' to get debug data printout!
 
-  // Get pressure data
-  ret = Dps310PressureSensor.measurePressureOnce(pressure, oversampling);
-  if (ret != 0)
-  {
-    //Something went wrong.
-    //Look at the library code for more information about return codes
-    Serial.print("Dps310 FAIL! ret = ");
-    Serial.println(ret);
+  if (measure.RangeStatus != 4) {  // phase failures have incorrect data
+    range = measure.RangeMilliMeter;
+    Serial.print("Distance (mm): "); Serial.println(measure.RangeMilliMeter);
+  } else {
+    Serial.println(" out of range ");
   }
 
   // Wrap message into Json format
   StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
   root["cubeId"] = CUBE_ID;
-  root["pressure"] = pressure;
+  root["range"] = range;
   root.printTo(message, MAX_MQTT_PAYLOAD);
   // Send message to toolkit
   client.publish("sensorData", message);
-  Serial.println("Pressure data is sent");
+  Serial.println("Range data is sent");
   
   // Wait some time
   delay(500);
