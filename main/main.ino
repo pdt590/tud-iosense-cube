@@ -8,6 +8,7 @@
 
 //#define DEBUG
 #define MAX_MQTT_PAYLOAD 100
+#define CUBE_ID 0
 
 //char ssid[] = "Connectify-thang";    // your network SSID (name)
 //char pass[] = "12345678";    // your network password (use for WPA, or use as key for WEP)
@@ -17,7 +18,6 @@ char pass[] = "en2ZP5Jm2fxD9uB6";    // your network password (use for WPA, or u
 int status = WL_IDLE_STATUS;
 String cubeId;
 
-int32_t temperature;
 int32_t pressure;
 int16_t oversampling = 7;
 int16_t ret;
@@ -80,7 +80,6 @@ void setup(void)
   // Init DPS310 sensor
   Serial.println("Initialize DPS310 Pressure Sensor...");
   Dps310PressureSensor.begin(Wire);
-  
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -91,13 +90,6 @@ void callback(char* topic, byte* payload, unsigned int length) {
     Serial.print((char)payload[i]);
   }
   Serial.println();
-  //String myTopic(topic); 
-  if (strcmp("lampUrl", topic)==0) {
-    StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
-    JsonObject& root = jsonBuffer.parseObject((const char*)payload);
-    lampUrl = root["lampUrl"].as<String>();
-    client.unsubscribe(topic);
-  }
 }
 
 /**************************************************************************/
@@ -126,30 +118,15 @@ void loop(void)
   // Wrap message into Json format
   StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
-  root["cubeId"] = cubeId;
-  (lampUrl == "") ? (root["cubeState"] = false) : (root["cubeState"] = true);
-  root["cubeLampUrl"] = lampUrl;
+  root["cubeId"] = CUBE_ID;
+  root["pressure"] = pressure;
   root.printTo(message, MAX_MQTT_PAYLOAD);
-  // Send message to dashboard
-  client.publish("cubeList", message);
-  
-  if (lampUrl != "") {
-    StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
-    JsonObject& root = jsonBuffer.createObject();
-    root["cubeId"] = cubeId;
-    root["lampUrl"] = lampUrl;
-    root["pressure"] = pressure;
-    root.printTo(message, MAX_MQTT_PAYLOAD);
-    // Send message to toolkit
-    client.publish("sensorData", message);
-    Serial.println(message);
-    Serial.println("Pressure data is sent");
-  } else {
-    Serial.println("Cube doesn't connect yet");
-  }
+  // Send message to toolkit
+  client.publish("sensorData", message);
+  Serial.println("Pressure data is sent");
   
   // Wait some time
-  delay(100);
+  delay(500);
 }
 
 void reconnect() {
@@ -164,9 +141,6 @@ void reconnect() {
     // Attempt to connect
     if (client.connect(cubeId.c_str())) {
       Serial.println("connected");
-      Serial.println("subscribing some topics ...");
-      // subscribe
-      client.subscribe("lampUrl");
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
