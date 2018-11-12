@@ -3,34 +3,27 @@
 #include <SPI.h>
 #include <WiFi101.h>
 #include <ArduinoJson.h>
-#include <Dps310.h>
 #include <PubSubClient.h>
+#include "Adafruit_APDS9960.h"
 
-//#define DEBUG
+#define DEBUG
 #define MAX_MQTT_PAYLOAD 100
 #define CUBE_ID 0
 
-//char ssid[] = "Connectify-thang";    // your network SSID (name)
-//char pass[] = "12345678";    // your network password (use for WPA, or use as key for WEP)
 char ssid[] = "asus-2.4g";    // your network SSID (name)
 char pass[] = "en2ZP5Jm2fxD9uB6";    // your network password (use for WPA, or use as key for WEP)
-
 int status = WL_IDLE_STATUS;
-String cubeId;
 
-int32_t pressure;
-int16_t oversampling = 7;
-int16_t ret;
-String lampUrl;
-// Dps310 Object
-Dps310 Dps310PressureSensor = Dps310();
-
-//char server[] = "www.google.com";    // name address for server (using DNS)
-IPAddress server(10,8,0,198);  // numeric IP for server (no DNS)
+// APDS9960 Object
+Adafruit_APDS9960 apds;
+uint8_t gesture;
 
 WiFiClient wifiClient;
+
+IPAddress server(192,168,1,15);
 PubSubClient client(wifiClient);
 char message[MAX_MQTT_PAYLOAD];
+String cubeId;
 
 /**************************************************************************/
 /*
@@ -42,7 +35,7 @@ void setup(void)
   //Configure pins for Adafruit ATWINC1500 Feather
   WiFi.setPins(8,7,4,2);
   
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   #ifdef DEBUG
   while (!Serial) {
@@ -77,9 +70,15 @@ void setup(void)
   client.setServer(server, 1883);
   client.setCallback(callback);
 
-  // Init DPS310 sensor
-  Serial.println("Initialize DPS310 Pressure Sensor...");
-  Dps310PressureSensor.begin(Wire);
+  // Init APDS9960 sensor
+  Serial.println("Initialize APDS9960 Sensor...");
+  if(!apds.begin()){
+    Serial.println("failed to initialize device! Please check your wiring.");
+  }
+  else Serial.println("Device initialized!");
+  // Gesture mode will be entered once proximity mode senses something close
+  apds.enableProximity(true);
+  apds.enableGesture(true);
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -105,30 +104,69 @@ void loop(void)
   }
   client.loop();
 
-  // Get pressure data
-  ret = Dps310PressureSensor.measurePressureOnce(pressure, oversampling);
-  if (ret != 0)
-  {
-    //Something went wrong.
-    //Look at the library code for more information about return codes
-    Serial.print("Dps310 FAIL! ret = ");
-    Serial.println(ret);
+  // Read a gesture from the device
+  gesture = apds.readGesture();
+  if(gesture == APDS9960_DOWN) {
+    Serial.println("DOWN");
+    // Wrap message into Json format
+    StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
+    JsonObject& root = jsonBuffer.createObject();
+    root["cubeId"] = CUBE_ID;
+    root["gesture"] = gesture;
+    root.printTo(message, MAX_MQTT_PAYLOAD);
+    // Send message to toolkit
+    client.publish("sensorData", message);
+    Serial.println("gesture data is sent");
   }
 
-  // Wrap message into Json format
-  StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
-  root["cubeId"] = CUBE_ID;
-  root["pressure"] = pressure;
-  root.printTo(message, MAX_MQTT_PAYLOAD);
-  // Send message to toolkit
-  client.publish("sensorData", message);
-  Serial.println("Pressure data is sent");
+  if(gesture == APDS9960_UP) {
+    Serial.println("UP");
+    // Wrap message into Json format
+    StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
+    JsonObject& root = jsonBuffer.createObject();
+    root["cubeId"] = CUBE_ID;
+    root["gesture"] = gesture;
+    root.printTo(message, MAX_MQTT_PAYLOAD);
+    // Send message to toolkit
+    client.publish("sensorData", message);
+    Serial.println("gesture data is sent");
+  }
+  
+  if(gesture == APDS9960_LEFT) {
+    Serial.println("LEFT");
+    // Wrap message into Json format
+    StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
+    JsonObject& root = jsonBuffer.createObject();
+    root["cubeId"] = CUBE_ID;
+    root["gesture"] = gesture;
+    root.printTo(message, MAX_MQTT_PAYLOAD);
+    // Send message to toolkit
+    client.publish("sensorData", message);
+    Serial.println("gesture data is sent");
+  }
+
+  if(gesture == APDS9960_RIGHT) {
+    Serial.println("RIGHT");
+    // Wrap message into Json format
+    StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
+    JsonObject& root = jsonBuffer.createObject();
+    root["cubeId"] = CUBE_ID;
+    root["gesture"] = gesture;
+    root.printTo(message, MAX_MQTT_PAYLOAD);
+    // Send message to toolkit
+    client.publish("sensorData", message);
+    Serial.println("gesture data is sent");
+  }
   
   // Wait some time
   delay(500);
 }
 
+/**************************************************************************/
+/*
+    Reconnects MQTT server when disconnecting
+*/
+/**************************************************************************/
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
