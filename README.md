@@ -7,8 +7,14 @@
 - Using WiFi Module on M0 - [Link](https://learn.adafruit.com/adafruit-feather-m0-wifi-atwinc1500/using-the-wifi-module)
 - Install required libs on Arduino IDE - [Link](https://learn.adafruit.com/adafruit-all-about-arduino-libraries-install-use/how-to-install-a-library)
 - APDS9960 Gesture Sensor
-    - https://learn.adafruit.com/adafruit-apds9960-breakout
-    - https://learn.adafruit.com/adafruit-apds9960-breakout/arduino-wiring-and-test
+    - SparkFun
+        - https://www.sparkfun.com/products/12787
+        - https://learn.sparkfun.com/tutorials/apds-9960-rgb-and-gesture-sensor-hookup-guide
+        - https://github.com/sparkfun/APDS-9960_RGB_and_Gesture_Sensor
+    - Adafruit
+        - https://learn.adafruit.com/adafruit-apds9960-breakout
+        - https://learn.adafruit.com/adafruit-apds9960-breakout/arduino-wiring-and-test
+        - https://github.com/adafruit/Adafruit_APDS9960
 - Others
     - Error (if any) 
         - https://forums.adafruit.com/viewtopic.php?f=24&t=129808

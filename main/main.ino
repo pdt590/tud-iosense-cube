@@ -4,18 +4,18 @@
 #include <WiFi101.h>
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
-#include "Adafruit_APDS9960.h"
+#include <SparkFun_APDS9960.h>
 
 #define DEBUG
 #define MAX_MQTT_PAYLOAD 100
 #define CUBE_ID 0
 
-char ssid[] = "asus-2.4g";    // your network SSID (name)
-char pass[] = "en2ZP5Jm2fxD9uB6";    // your network password (use for WPA, or use as key for WEP)
+char ssid[] = "asus-2.4g";        // your network SSID (name)
+char pass[] = "en2ZP5Jm2fxD9uB6"; // your network password (use for WPA, or use as key for WEP)
 int status = WL_IDLE_STATUS;
 
 // APDS9960 Object
-Adafruit_APDS9960 apds;
+SparkFun_APDS9960 apds = SparkFun_APDS9960();
 uint8_t gesture;
 
 WiFiClient wifiClient;
@@ -35,7 +35,7 @@ void setup(void)
   //Configure pins for Adafruit ATWINC1500 Feather
   WiFi.setPins(8,7,4,2);
   
-  Serial.begin(115200);
+  Serial.begin(9600);
 
   #ifdef DEBUG
   while (!Serial) {
@@ -70,15 +70,19 @@ void setup(void)
   client.setServer(server, 1883);
   client.setCallback(callback);
 
-  // Init APDS9960 sensor
-  Serial.println("Initialize APDS9960 Sensor...");
-  if(!apds.begin()){
-    Serial.println("failed to initialize device! Please check your wiring.");
+  // Initialize APDS-9960 (configure I2C and initial values)
+  if ( apds.init() ) {
+    Serial.println(F("APDS-9960 initialization complete"));
+  } else {
+    Serial.println(F("Something went wrong during APDS-9960 init!"));
   }
-  else Serial.println("Device initialized!");
-  // Gesture mode will be entered once proximity mode senses something close
-  apds.enableProximity(true);
-  apds.enableGesture(true);
+  
+  // Start running the APDS-9960 gesture sensor engine
+  if ( apds.enableGestureSensor(true) ) {
+    Serial.println(F("Gesture sensor is now running"));
+  } else {
+    Serial.println(F("Something went wrong during gesture sensor init!"));
+  }
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -105,9 +109,8 @@ void loop(void)
   client.loop();
 
   // Read a gesture from the device
-  gesture = apds.readGesture();
-  if(gesture == APDS9960_DOWN) {
-    Serial.println("DOWN");
+  if ( apds.isGestureAvailable() ) {
+    gesture = apds.readGesture();
     // Wrap message into Json format
     StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
     JsonObject& root = jsonBuffer.createObject();
@@ -117,47 +120,30 @@ void loop(void)
     // Send message to toolkit
     client.publish("sensorData", message);
     Serial.println("gesture data is sent");
+    switch (gesture) {
+      case DIR_UP:
+        Serial.println("UP");
+        break;
+      case DIR_DOWN:
+        Serial.println("DOWN");
+        break;
+      case DIR_LEFT:
+        Serial.println("LEFT");
+        break;
+      case DIR_RIGHT:
+        Serial.println("RIGHT");
+        break;
+      case DIR_NEAR:
+        Serial.println("NEAR");
+        break;
+      case DIR_FAR:
+        Serial.println("FAR");
+        break;
+      default:
+        Serial.println("NONE");
+    }
   }
 
-  if(gesture == APDS9960_UP) {
-    Serial.println("UP");
-    // Wrap message into Json format
-    StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
-    JsonObject& root = jsonBuffer.createObject();
-    root["cubeId"] = CUBE_ID;
-    root["gesture"] = gesture;
-    root.printTo(message, MAX_MQTT_PAYLOAD);
-    // Send message to toolkit
-    client.publish("sensorData", message);
-    Serial.println("gesture data is sent");
-  }
-  
-  if(gesture == APDS9960_LEFT) {
-    Serial.println("LEFT");
-    // Wrap message into Json format
-    StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
-    JsonObject& root = jsonBuffer.createObject();
-    root["cubeId"] = CUBE_ID;
-    root["gesture"] = gesture;
-    root.printTo(message, MAX_MQTT_PAYLOAD);
-    // Send message to toolkit
-    client.publish("sensorData", message);
-    Serial.println("gesture data is sent");
-  }
-
-  if(gesture == APDS9960_RIGHT) {
-    Serial.println("RIGHT");
-    // Wrap message into Json format
-    StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
-    JsonObject& root = jsonBuffer.createObject();
-    root["cubeId"] = CUBE_ID;
-    root["gesture"] = gesture;
-    root.printTo(message, MAX_MQTT_PAYLOAD);
-    // Send message to toolkit
-    client.publish("sensorData", message);
-    Serial.println("gesture data is sent");
-  }
-  
   // Wait some time
   delay(500);
 }
