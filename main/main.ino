@@ -4,19 +4,24 @@
 #include <WiFi101.h>
 #include <ArduinoJson.h>
 #include <PubSubClient.h>
-#include <SparkFun_APDS9960.h>
+#include <Tlv493d.h>
 
 #define DEBUG
 #define MAX_MQTT_PAYLOAD 100
 #define CUBE_ID 0
 
+#define DIR_LEFT 1
+#define DIR_RIGHT 2
+#define DIR_UP 3
+#define DIR_DOWN 4
+uint8_t direction;
+
 char ssid[] = "asus-2.4g";        // your network SSID (name)
 char pass[] = "en2ZP5Jm2fxD9uB6"; // your network password (use for WPA, or use as key for WEP)
 int status = WL_IDLE_STATUS;
 
-// APDS9960 Object
-SparkFun_APDS9960 apds = SparkFun_APDS9960();
-uint8_t gesture;
+// Tlv493d Opject
+Tlv493d Tlv493dMagnetic3DSensor = Tlv493d();
 
 WiFiClient wifiClient;
 
@@ -70,19 +75,10 @@ void setup(void)
   client.setServer(server, 1883);
   client.setCallback(callback);
 
-  // Initialize APDS-9960 (configure I2C and initial values)
-  if ( apds.init() ) {
-    Serial.println(F("APDS-9960 initialization complete"));
-  } else {
-    Serial.println(F("Something went wrong during APDS-9960 init!"));
-  }
-  
-  // Start running the APDS-9960 gesture sensor engine
-  if ( apds.enableGestureSensor(true) ) {
-    Serial.println(F("Gesture sensor is now running"));
-  } else {
-    Serial.println(F("Something went wrong during gesture sensor init!"));
-  }
+  // Initialize Tlv493d Magnetic 3D Sensor
+  Tlv493dMagnetic3DSensor.begin();
+  Tlv493dMagnetic3DSensor.setAccessMode(Tlv493dMagnetic3DSensor.MASTERCONTROLLEDMODE);
+  Tlv493dMagnetic3DSensor.disableTemp();
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -108,44 +104,50 @@ void loop(void)
   }
   client.loop();
 
-  // Read a gesture from the device
-  if ( apds.isGestureAvailable() ) {
-    gesture = apds.readGesture();
-    // Wrap message into Json format
-    StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
-    JsonObject& root = jsonBuffer.createObject();
-    root["cubeId"] = CUBE_ID;
-    root["gesture"] = gesture;
-    root.printTo(message, MAX_MQTT_PAYLOAD);
-    // Send message to toolkit
-    client.publish("sensorData", message);
-    Serial.println("gesture data is sent");
-    switch (gesture) {
-      case DIR_UP:
-        Serial.println("UP");
-        break;
-      case DIR_DOWN:
-        Serial.println("DOWN");
-        break;
-      case DIR_LEFT:
-        Serial.println("LEFT");
-        break;
-      case DIR_RIGHT:
-        Serial.println("RIGHT");
-        break;
-      case DIR_NEAR:
-        Serial.println("NEAR");
-        break;
-      case DIR_FAR:
-        Serial.println("FAR");
-        break;
-      default:
-        Serial.println("NONE");
-    }
+  // Read a X-Y-Z value from the sensor
+  delay(Tlv493dMagnetic3DSensor.getMeasurementDelay());
+  Tlv493dMagnetic3DSensor.updateData();
+  float x = Tlv493dMagnetic3DSensor.getX();
+  float y = Tlv493dMagnetic3DSensor.getY();
+
+  // Process sensing data
+  if(fabsf(x) > fabsf(y)) {
+    (x < 0)  ? direction = DIR_RIGHT : direction = DIR_LEFT;
+  }
+
+  if(fabsf(x) < fabsf(y)) {
+    (y < 0)  ? direction = DIR_UP : direction = DIR_DOWN;
+  }
+
+
+  // Wrap message into Json format
+  StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
+  JsonObject& root = jsonBuffer.createObject();
+  root["cubeId"] = CUBE_ID;
+  root["gesture"] = direction;
+  root.printTo(message, MAX_MQTT_PAYLOAD);
+  // Send message to toolkit
+  client.publish("sensorData", message);
+  Serial.println("gesture data is sent");
+  switch (direction) {
+    case DIR_UP:   //3
+      Serial.println("UP");
+      break;
+    case DIR_DOWN: //4
+      Serial.println("DOWN");
+      break;
+    case DIR_LEFT: //1
+      Serial.println("LEFT");
+      break;
+    case DIR_RIGHT://2
+      Serial.println("RIGHT");
+      break;
+    default: //0
+      Serial.println("NONE");
   }
 
   // Wait some time
-  delay(500);
+  delay(2000);
 }
 
 /**************************************************************************/
