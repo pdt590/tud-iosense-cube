@@ -6,7 +6,7 @@
 #include <PubSubClient.h>
 #include <Tlv493d.h>
 
-//#define DEBUG
+//#define DEBUG_Tlv493d
 #define MAX_MQTT_PAYLOAD 100
 #define CUBE_ID 0
 
@@ -45,7 +45,7 @@ void setup(void)
   
   Serial.begin(9600);
 
-  #ifdef DEBUG
+  #ifdef DEBUG_Tlv493d
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
@@ -122,7 +122,7 @@ void loop(void)
     direction = -1;
   }
   
-  #ifdef DEBUG
+  #ifdef DEBUG_Tlv493d
   Serial.print("X:  ");
   Serial.println(x);
   Serial.print("Y:  ");
@@ -147,7 +147,7 @@ void loop(void)
   // Send message to toolkit
   client.publish("sensorData", message);
 
-  #ifdef DEBUG
+  #ifdef DEBUG_Tlv493d
   Serial.println("gesture data is sent");
   switch (direction) {
     case DIR_UP:   //3
