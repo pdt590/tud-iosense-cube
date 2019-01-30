@@ -6,7 +6,7 @@
 #include <PubSubClient.h>
 #include <Tlv493d.h>
 
-#define DEBUG
+//#define DEBUG
 #define MAX_MQTT_PAYLOAD 100
 #define CUBE_ID 0
 
@@ -14,7 +14,10 @@
 #define DIR_RIGHT 2
 #define DIR_UP 3
 #define DIR_DOWN 4
-uint8_t direction;
+#define Z_THRESHOLD 0.3
+uint8_t direction = -1;
+uint8_t buffer_count = 0;
+int8_t  buffer[2];
 
 char ssid[] = "asus-2.4g";        // your network SSID (name)
 char pass[] = "en2ZP5Jm2fxD9uB6"; // your network password (use for WPA, or use as key for WEP)
@@ -25,7 +28,7 @@ Tlv493d Tlv493dMagnetic3DSensor = Tlv493d();
 
 WiFiClient wifiClient;
 
-IPAddress server(192,168,1,15);
+IPAddress server(192,168,1,16);
 PubSubClient client(wifiClient);
 char message[MAX_MQTT_PAYLOAD];
 String cubeId;
@@ -109,16 +112,31 @@ void loop(void)
   Tlv493dMagnetic3DSensor.updateData();
   float x = Tlv493dMagnetic3DSensor.getX();
   float y = Tlv493dMagnetic3DSensor.getY();
+  float z = Tlv493dMagnetic3DSensor.getZ();
 
   // Process sensing data
-  if(fabsf(x) > fabsf(y)) {
-    (x < 0)  ? direction = DIR_RIGHT : direction = DIR_LEFT;
+  if(fabsf(z) >= Z_THRESHOLD) {
+    if(fabsf(x) > fabsf(y)) (x < 0)  ? direction = DIR_UP : direction = DIR_DOWN;
+    if(fabsf(x) < fabsf(y)) (y < 0)  ? direction = DIR_LEFT : direction = DIR_RIGHT;
+  }else {
+    direction = -1;
   }
+  
+  #ifdef DEBUG
+  Serial.print("X:  ");
+  Serial.println(x);
+  Serial.print("Y:  ");
+  Serial.println(y);
+  Serial.print("Z:  ");
+  Serial.println(z);
+  #endif
 
-  if(fabsf(x) < fabsf(y)) {
-    (y < 0)  ? direction = DIR_UP : direction = DIR_DOWN;
+  buffer[buffer_count] = direction;
+  (buffer_count == 1) ? buffer_count = 0 : buffer_count++;
+  if(buffer[0] != buffer[1]){
+    delay(1000);
+    return;
   }
-
 
   // Wrap message into Json format
   StaticJsonBuffer<MAX_MQTT_PAYLOAD> jsonBuffer;
@@ -128,6 +146,8 @@ void loop(void)
   root.printTo(message, MAX_MQTT_PAYLOAD);
   // Send message to toolkit
   client.publish("sensorData", message);
+
+  #ifdef DEBUG
   Serial.println("gesture data is sent");
   switch (direction) {
     case DIR_UP:   //3
@@ -145,6 +165,7 @@ void loop(void)
     default: //0
       Serial.println("NONE");
   }
+  #endif
 
   // Wait some time
   delay(2000);
