@@ -6,7 +6,7 @@
 #include <PubSubClient.h>
 #include <SparkFun_APDS9960.h>
 
-#define DEBUG
+//#define DEBUG_APDS9960
 #define MAX_MQTT_PAYLOAD 100
 #define CUBE_ID 0
 
@@ -20,7 +20,7 @@ uint8_t gesture;
 
 WiFiClient wifiClient;
 
-IPAddress server(192,168,1,15);
+IPAddress server(192,168,1,16);
 PubSubClient client(wifiClient);
 char message[MAX_MQTT_PAYLOAD];
 String cubeId;
@@ -37,7 +37,7 @@ void setup(void)
   
   Serial.begin(9600);
 
-  #ifdef DEBUG
+  #ifdef DEBUG_APDS9960
   while (!Serial) {
     ; // wait for serial port to connect. Needed for native USB port only
   }
@@ -119,6 +119,8 @@ void loop(void)
     root.printTo(message, MAX_MQTT_PAYLOAD);
     // Send message to toolkit
     client.publish("sensorData", message);
+
+    #ifdef DEBUG_APDS9960
     Serial.println("gesture data is sent");
     switch (gesture) {
       case DIR_UP:
@@ -142,6 +144,7 @@ void loop(void)
       default:
         Serial.println("NONE");
     }
+    #endif
   }
 
   // Wait some time
